@@ -45,40 +45,47 @@ const Previewer = {
             ].join(';');
             previewButton.innerHTML = '&nbsp;';
             previewButton.addEventListener('click', (e) => {
-                let clickImgUrl;
-                try {
-                    clickImgUrl = e.target.parentNode.children[0].children[1].children[0].src;
-                } catch (error) {
-                    Logger.error('Fetch Url Error', error);
-                    return;
-                }
-                Previewer.showPreview(clickImgUrl);
+                const clickImgElm = e.target.parentNode.querySelector('a>div:last-child>img');
+                const pageSizeElm = e.target.parentNode.querySelector(
+                    'a>div:first-child>div:last-child>div>span:last-child'
+                );
+
+                if (!clickImgElm) return;
+
+                const imgUrl = clickImgElm.src;
+                const pageSize = pageSizeElm ? pageSizeElm.innerText : '1';
+
+                Previewer.showPreview(imgUrl, pageSize);
             });
 
             illust.appendChild(previewButton);
             illust.classList.add('pixiv-previewer-btn-exist');
         }
     },
-    showPreview: (url) => {
-        Logger.debug('Base Url', url, Previewer.convert(url));
-        document.querySelector('#pixiv-previewer-cover').style.display = 'flex';
-        document.querySelector('#pixiv-previewer-image').src = Previewer.convert(url);
-    },
-    redirect: (url) => {
-        const illustId = url.replace(/https:\/\/i\.pximg\.net\/img\-master\/img\/.+?\/([0-9]+)_p.+/, '$1');
-
-        window.open('https://www.pixiv.net/artworks/' + illustId);
+    showPreview: (url, pageSize = 1) => {
+        const { Time, IllustId } = Previewer.convert(url);
+        const Cover = document.querySelector('#pixiv-previewer-cover');
+        Cover.style.display = 'flex';
+        Cover.dataset.time = Time;
+        Cover.dataset.id = IllustId;
+        Cover.dataset.size = pageSize;
+        Cover.dataset.page = 0;
+        document.querySelector('#pixiv-previewer-redirect').href = 'https://www.pixiv.net/artworks/' + IllustId;
+        document.querySelector(
+            '#pixiv-previewer-image'
+        ).src = `https://i.pximg.net/img-master/img/${Time}/${IllustId}_p0_master1200.jpg`;
     },
     convert: (baseUrl = '') => {
-        return baseUrl.replace(
-            /https:\/\/i\.pximg\.net\/.+?\/img\/([0-9\/]+)_p.+?\.([a-z]+)$/,
-            'https://i.pximg.net/img-master/img/$1_p0_master1200.jpg'
+        const [, Time = '', IllustId = ''] = baseUrl.match(
+            /^https:\/\/i\.pximg\.net\/.+?\/img\/([0-9\/]+?)\/(\d+?)_p.+?\.[a-z]+$/
         );
+
+        return { Time, IllustId };
     },
 };
 
 (function () {
-    'use strict';
+    ('use strict');
     Logger.debug('Script Start.');
 
     const rootElm = document.querySelector('#root');
@@ -106,22 +113,17 @@ const Previewer = {
         e.target.style.display = 'none';
     });
 
-    const previewRedirect = document.createElement('div');
+    const previewRedirect = document.createElement('a');
     previewRedirect.id = 'pixiv-previewer-redirect';
     previewRedirect.style.cssText = [
         'width: 32px',
         'height: 32px',
         'background: red',
         'margin-top: 16px',
-        'cursor: pointer',
+        'display: block',
         'background: no-repeat center',
         'background-image: url("' + Icon.Redirect + '")',
     ].join(';');
-    previewRedirect.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const imgUrl = document.querySelector('#pixiv-previewer-image').src;
-        Previewer.redirect(imgUrl);
-    });
     previewCover.appendChild(previewRedirect);
 
     const previewImage = document.createElement('img');
@@ -129,6 +131,23 @@ const Previewer = {
     previewImage.style.cssText = ['max-width: 90%', 'max-height: 90%', 'margin: auto'].join(';');
     previewImage.addEventListener('click', (e) => {
         e.stopPropagation();
+
+        const Cover = document.querySelector('#pixiv-previewer-cover');
+        const { time, id, size } = Cover.dataset;
+        let { page = 0 } = Cover.dataset;
+
+        let next = Number.parseInt(page, 10) + 1;
+        if (next + 1 > size) {
+            next = 0;
+        }
+
+        if (next != page) {
+            document.querySelector(
+                '#pixiv-previewer-image'
+            ).src = `https://i.pximg.net/img-master/img/${time}/${id}_p${next}_master1200.jpg`;
+            Cover.dataset.page = next;
+        }
+
         Logger.debug('click image');
     });
     previewCover.appendChild(previewImage);
